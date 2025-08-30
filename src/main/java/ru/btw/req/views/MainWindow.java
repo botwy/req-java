@@ -1,9 +1,6 @@
 package ru.btw.req.views;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import ru.btw.req.network.Rest;
 
 import javax.swing.*;
@@ -16,77 +13,132 @@ public class MainWindow extends JFrame {
 
     public MainWindow() {
         setTitle("req");
-        setLayout(null); // Using absolute positioning
-        setResizable(false);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // Получаем размеры экрана
         Toolkit toolkit = Toolkit.getDefaultToolkit();
         Dimension dimension = toolkit.getScreenSize();
         setBounds(inset, inset, dimension.width - inset * 2, dimension.height - inset * 2);
         setResizable(true);
 
-        JLabel urlLabel = new JLabel("url запроса");
-        urlLabel.setBounds(10, 10, 100, 20);
-        add(urlLabel);
-        JTextField urlField = new JTextField();
-        urlField.setBounds(110, 10, 370, 20);
-        urlField.setText("http://127.0.0.1:3030/api-get");
-        add(urlField);
+        // Основная панель с отступами
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JCheckBox postCheckBox = new JCheckBox("post");
-        postCheckBox.setBounds(10, 40, 80, 20);
-        add(postCheckBox);
+        // Панель для URL
+        JPanel urlPanel = new JPanel(new BorderLayout(5, 0));
+        urlPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        JLabel urlLabel = new JLabel("url запроса:");
+        JTextField urlField = new JTextField("http://127.0.0.1:3030/api-get");
+
+        urlPanel.add(urlLabel, BorderLayout.WEST);
+        urlPanel.add(urlField, BorderLayout.CENTER);
+
+        // Панель для метода запроса
+        JPanel methodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        methodPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        JCheckBox postCheckBox = new JCheckBox("POST");
         JLabel rqLabel = new JLabel("тело запроса:");
-        rqLabel.setBounds(100, 40, 100, 20);
-        add(rqLabel);
+
+        methodPanel.add(postCheckBox);
+        methodPanel.add(rqLabel);
+
+        // Панель для тела запроса
+        JPanel requestPanel = new JPanel(new BorderLayout());
+        requestPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+
         JTextPane rqPane = new JTextPane();
-        rqPane.setBounds(10, 70, 465, 160);
-        add(rqPane);
         JScrollPane rqScrollPane = new JScrollPane(rqPane);
-        rqScrollPane.setBounds(10, 70, 475, 170);
-        add(rqScrollPane);
-        rqScrollPane.setViewportView(rqPane);
+        rqScrollPane.setPreferredSize(new Dimension(0, 170));
+
+        requestPanel.add(rqScrollPane, BorderLayout.CENTER);
+
+        // Панель для куков
+        JPanel cookiePanel = new JPanel(new BorderLayout());
+        cookiePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
 
         JLabel cookieLabel = new JLabel("куки:");
-        cookieLabel.setBounds(10, 240, 100, 20);
-        add(cookieLabel);
         JTextPane cookiePane = new JTextPane();
-        cookiePane.setBounds(10, 260, 465, 40);
-        add(cookiePane);
         JScrollPane cookieScrollPane = new JScrollPane(cookiePane);
-        cookieScrollPane.setBounds(10, 260, 475, 40);
-        add(cookieScrollPane);
-        cookieScrollPane.setViewportView(cookiePane);
+        cookieScrollPane.setPreferredSize(new Dimension(0, 140));
+
+        cookiePanel.add(cookieLabel, BorderLayout.NORTH);
+        cookiePanel.add(cookieScrollPane, BorderLayout.CENTER);
+
+        // Панель статуса
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        statusPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
         JLabel statusLabel = new JLabel("статус: ");
-        statusLabel.setBounds(10, 310, 150, 20);
-        add(statusLabel);
+        statusPanel.add(statusLabel);
+
+        // Панель для ответа
+        JPanel responsePanel = new JPanel(new BorderLayout());
+        responsePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 230));
 
         JTextPane resPane = new JTextPane();
-        resPane.setBounds(10, 340, 465, 160);
-        add(resPane);
         JScrollPane resScrollPane = new JScrollPane(resPane);
-        resScrollPane.setBounds(10, 340, 475, 170);
-        add(resScrollPane);
-        resScrollPane.setViewportView(resPane);
+        resScrollPane.setPreferredSize(new Dimension(0, 200));
 
+        responsePanel.add(new JLabel("Ответ:"), BorderLayout.NORTH);
+        responsePanel.add(resScrollPane, BorderLayout.CENTER);
+
+        // Кнопка отправки
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton sendButton = new JButton("Отправить");
-        sendButton.setBounds(10, 520, 150, 30);
-        add(sendButton);
+        sendButton.setPreferredSize(new Dimension(150, 30));
+        buttonPanel.add(sendButton);
+
+        // Добавляем все панели
+        mainPanel.add(urlPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(methodPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(requestPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(cookiePanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(statusPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(responsePanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(buttonPanel);
+
+        // Обработчик кнопки
         sendButton.addActionListener((ActionEvent e) -> {
             String url = urlField.getText().trim();
             String cookie = cookiePane.getText().trim();
             HttpResponse<String> res;
-            if (postCheckBox.isSelected()) {
-                String body = rqPane.getText().trim();
-                res = Rest.post(url, body, cookie);
-            } else {
-                res = Rest.get(url, cookie);
+
+            try {
+                if (postCheckBox.isSelected()) {
+                    String body = rqPane.getText().trim();
+                    res = Rest.post(url, body, cookie);
+                } else {
+                    res = Rest.get(url, cookie);
+                }
+
+                statusLabel.setText("статус: " + res.statusCode());
+
+                try {
+                    Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                    JsonElement je = JsonParser.parseString(res.body());
+                    String prettyJsonString = gson.toJson(je);
+                    resPane.setText(prettyJsonString);
+                } catch (JsonSyntaxException ex) {
+                    resPane.setText(res.body()); // Если не JSON, показываем как есть
+                }
+
+            } catch (Exception ex) {
+                statusLabel.setText("статус: ошибка");
+                resPane.setText("Ошибка: " + ex.getMessage());
             }
-            statusLabel.setText("статус: " + res.statusCode());
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            JsonElement je = JsonParser.parseString(res.body());
-            String prettyJsonString = gson.toJson(je);
-            resPane.setText(prettyJsonString);
         });
+
+        add(mainPanel);
+        setVisible(true);
     }
 }
