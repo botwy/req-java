@@ -21,10 +21,13 @@ public class MainWindow extends JFrame {
         setBounds(inset, inset, dimension.width - inset * 2, dimension.height - inset * 2);
         setResizable(true);
 
-        // Основная панель с отступами
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        // Основная панель с BorderLayout - кнопка будет внизу
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Вертикальная панель для всех компонентов кроме кнопки
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
 
         // Панель для URL
         JPanel urlPanel = new JPanel(new BorderLayout(5, 0));
@@ -86,26 +89,28 @@ public class MainWindow extends JFrame {
         responsePanel.add(new JLabel("Ответ:"), BorderLayout.NORTH);
         responsePanel.add(resScrollPane, BorderLayout.CENTER);
 
-        // Кнопка отправки
+        // Добавляем все панели в contentPanel
+        contentPanel.add(urlPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(methodPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(requestPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(cookiePanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(statusPanel);
+        contentPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        contentPanel.add(responsePanel);
+
+        // Кнопка отправки - отдельная панель для привязки к низу
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton sendButton = new JButton("Отправить");
         sendButton.setPreferredSize(new Dimension(150, 30));
         buttonPanel.add(sendButton);
 
-        // Добавляем все панели
-        mainPanel.add(urlPanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(methodPanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(requestPanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(cookiePanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(statusPanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(responsePanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        mainPanel.add(buttonPanel);
+        // Добавляем contentPanel и buttonPanel в mainPanel
+        mainPanel.add(contentPanel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);   // Кнопка привязана к низу
 
         // Обработчик кнопки
         sendButton.addActionListener((ActionEvent e) -> {
