@@ -8,11 +8,11 @@ import ru.btw.req.network.Rest;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.net.http.HttpResponse;
 
 public class MainWindow extends JFrame {
-
-    private JButton button1;
+    private int inset = 100;
 
     public MainWindow() {
         setTitle("req");
@@ -21,12 +21,16 @@ public class MainWindow extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         Toolkit toolkit = Toolkit.getDefaultToolkit();
         Dimension dimension = toolkit.getScreenSize();
-        setBounds(dimension.width / 2 - 250, dimension.height / 2 - 500, 500, 600);
+        setBounds(inset, inset, dimension.width - inset * 2, dimension.height - inset * 2);
+        setResizable(true);
 
-        Input urlInput = new Input("url запроса");
-        urlInput.setStartPoint(10, 10);
-        urlInput.setParent(this);
-        urlInput.setValue("http://127.0.0.1:3030/api-get");
+        JLabel urlLabel = new JLabel("url запроса");
+        urlLabel.setBounds(10, 10, 100, 20);
+        add(urlLabel);
+        JTextField urlField = new JTextField();
+        urlField.setBounds(110, 10, 370, 20);
+        urlField.setText("http://127.0.0.1:3030/api-get");
+        add(urlField);
 
         JCheckBox postCheckBox = new JCheckBox("post");
         postCheckBox.setBounds(10, 40, 80, 20);
@@ -65,11 +69,11 @@ public class MainWindow extends JFrame {
         add(resScrollPane);
         resScrollPane.setViewportView(resPane);
 
-        Button sendButton = new Button("Отправить");
+        JButton sendButton = new JButton("Отправить");
         sendButton.setBounds(10, 520, 150, 30);
-        sendButton.setParent(this);
-        sendButton.setPressHandler(() -> {
-            String url = urlInput.getValue().trim();
+        add(sendButton);
+        sendButton.addActionListener((ActionEvent e) -> {
+            String url = urlField.getText().trim();
             String cookie = cookiePane.getText().trim();
             HttpResponse<String> res;
             if (postCheckBox.isSelected()) {
