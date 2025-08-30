@@ -4,16 +4,21 @@ import com.google.gson.*;
 import ru.btw.req.network.Rest;
 
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.net.http.HttpResponse;
 
 public class MainWindow extends JFrame {
     private int inset = 100;
+    private Highlighter.HighlightPainter searchHighlighter;
 
     public MainWindow() {
         setTitle("req");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // Инициализируем подсветку поиска
+        searchHighlighter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
 
         // Получаем размеры экрана
         Toolkit toolkit = Toolkit.getDefaultToolkit();
@@ -51,11 +56,11 @@ public class MainWindow extends JFrame {
 
         // Панель для тела запроса
         JPanel requestPanel = new JPanel(new BorderLayout());
-        requestPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        requestPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
 
         JTextPane rqPane = new JTextPane();
         JScrollPane rqScrollPane = new JScrollPane(rqPane);
-        rqScrollPane.setPreferredSize(new Dimension(0, 170));
+        rqScrollPane.setPreferredSize(new Dimension(0, 150));
 
         requestPanel.add(rqScrollPane, BorderLayout.CENTER);
 
@@ -78,15 +83,28 @@ public class MainWindow extends JFrame {
         JLabel statusLabel = new JLabel("статус: ");
         statusPanel.add(statusLabel);
 
-        // Панель для ответа
+        // Панель для ответа с поиском
         JPanel responsePanel = new JPanel(new BorderLayout());
-        responsePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 350));
 
         JTextPane resPane = new JTextPane();
         JScrollPane resScrollPane = new JScrollPane(resPane);
-        resScrollPane.setPreferredSize(new Dimension(0, 320));
+        resScrollPane.setPreferredSize(new Dimension(0, 0));
 
-        responsePanel.add(new JLabel("Ответ:"), BorderLayout.NORTH);
+        // Панель поиска
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        searchPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
+        JLabel searchLabel = new JLabel("Ответ. Поиск:");
+        JTextField searchField = new JTextField(45);
+        JButton searchButton = new JButton("Найти");
+        JButton clearSearchButton = new JButton("Очистить");
+
+        searchPanel.add(searchLabel);
+        searchPanel.add(searchField);
+        searchPanel.add(searchButton);
+        searchPanel.add(clearSearchButton);
+
+        responsePanel.add(searchPanel, BorderLayout.NORTH);
         responsePanel.add(resScrollPane, BorderLayout.CENTER);
 
         // Добавляем все панели в contentPanel
@@ -110,9 +128,9 @@ public class MainWindow extends JFrame {
 
         // Добавляем contentPanel и buttonPanel в mainPanel
         mainPanel.add(contentPanel, BorderLayout.CENTER);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);   // Кнопка привязана к низу
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
-        // Обработчик кнопки
+        // Обработчик кнопки отправки
         sendButton.addActionListener((ActionEvent e) -> {
             String url = urlField.getText().trim();
             String cookie = cookiePane.getText().trim();
@@ -143,7 +161,84 @@ public class MainWindow extends JFrame {
             }
         });
 
+        // Обработчик кнопки поиска
+        searchButton.addActionListener(e -> {
+            String searchText = searchField.getText().trim();
+            if (!searchText.isEmpty()) {
+                searchInTextPane(resPane, searchText);
+            }
+        });
+
+        // Обработчик очистки поиска
+        clearSearchButton.addActionListener(e -> {
+            searchField.setText("");
+            clearSearchHighlights(resPane);
+        });
+
+        // Поиск при нажатии Enter в поле поиска
+        searchField.addActionListener(e -> {
+            String searchText = searchField.getText().trim();
+            if (!searchText.isEmpty()) {
+                searchInTextPane(resPane, searchText);
+            }
+        });
+
         add(mainPanel);
         setVisible(true);
+    }
+
+    // Метод для поиска текста в JTextPane
+    private void searchInTextPane(JTextPane textPane, String searchText) {
+        clearSearchHighlights(textPane);
+
+        String content = textPane.getText();
+        if (content.isEmpty()) {
+            return;
+        }
+
+        Highlighter highlighter = textPane.getHighlighter();
+        String searchTextLower = searchText.toLowerCase();
+        String contentLower = content.toLowerCase();
+
+        int index = 0;
+        int foundCount = 0;
+
+        try {
+            while ((index = contentLower.indexOf(searchTextLower, index)) >= 0) {
+                int endIndex = index + searchText.length();
+                highlighter.addHighlight(index, endIndex, searchHighlighter);
+                foundCount++;
+                index = endIndex;
+            }
+
+            // Прокручиваем к первому найденному элементу
+            if (foundCount > 0) {
+                textPane.setCaretPosition(0);
+                textPane.moveCaretPosition(0);
+            }
+
+            JOptionPane.showMessageDialog(this,
+                    "Найдено совпадений: " + foundCount,
+                    "Результаты поиска",
+                    JOptionPane.INFORMATION_MESSAGE);
+
+        } catch (BadLocationException ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Ошибка при поиске: " + ex.getMessage(),
+                    "Ошибка",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Метод для очистки подсветки поиска
+    private void clearSearchHighlights(JTextPane textPane) {
+        Highlighter highlighter = textPane.getHighlighter();
+        Highlighter.Highlight[] highlights = highlighter.getHighlights();
+
+        for (Highlighter.Highlight highlight : highlights) {
+            if (highlight.getPainter() == searchHighlighter) {
+                highlighter.removeHighlight(highlight);
+            }
+        }
     }
 }
