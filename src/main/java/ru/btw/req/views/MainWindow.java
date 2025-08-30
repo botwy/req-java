@@ -12,6 +12,9 @@ import java.net.http.HttpResponse;
 public class MainWindow extends JFrame {
     private int inset = 100;
     private Highlighter.HighlightPainter searchHighlighter;
+    private java.util.List<Integer> searchPositions = new java.util.ArrayList<>();
+    private int currentSearchIndex = -1;
+    private JLabel searchResultLabel;
 
     public MainWindow() {
         setTitle("req");
@@ -98,11 +101,17 @@ public class MainWindow extends JFrame {
         JTextField searchField = new JTextField(45);
         JButton searchButton = new JButton("Найти");
         JButton clearSearchButton = new JButton("Очистить");
+        JButton nextButton = new JButton("Следующий");
+        JButton prevButton = new JButton("Предыдущий");
+        this.searchResultLabel = new JLabel("");
 
         searchPanel.add(searchLabel);
         searchPanel.add(searchField);
         searchPanel.add(searchButton);
         searchPanel.add(clearSearchButton);
+        searchPanel.add(prevButton);
+        searchPanel.add(nextButton);
+        searchPanel.add(this.searchResultLabel);
 
         responsePanel.add(searchPanel, BorderLayout.NORTH);
         responsePanel.add(resScrollPane, BorderLayout.CENTER);
@@ -165,21 +174,42 @@ public class MainWindow extends JFrame {
         searchButton.addActionListener(e -> {
             String searchText = searchField.getText().trim();
             if (!searchText.isEmpty()) {
-                searchInTextPane(resPane, searchText);
+                searchInTextPane(resPane, resScrollPane, searchText);
             }
         });
 
         // Обработчик очистки поиска
         clearSearchButton.addActionListener(e -> {
             searchField.setText("");
+            searchResultLabel.setText("");
             clearSearchHighlights(resPane);
+            searchPositions.clear();
+            currentSearchIndex = -1;
+        });
+
+        // Обработчик кнопки "Следующий"
+        nextButton.addActionListener(e -> {
+            if (!searchPositions.isEmpty()) {
+                currentSearchIndex = (currentSearchIndex + 1) % searchPositions.size();
+                scrollToPosition(resPane, resScrollPane, searchPositions.get(currentSearchIndex));
+                showSearchStatus();
+            }
+        });
+
+        // Обработчик кнопки "Предыдущий"
+        prevButton.addActionListener(e -> {
+            if (!searchPositions.isEmpty()) {
+                currentSearchIndex = (currentSearchIndex - 1 + searchPositions.size()) % searchPositions.size();
+                scrollToPosition(resPane, resScrollPane, searchPositions.get(currentSearchIndex));
+                showSearchStatus();
+            }
         });
 
         // Поиск при нажатии Enter в поле поиска
         searchField.addActionListener(e -> {
             String searchText = searchField.getText().trim();
             if (!searchText.isEmpty()) {
-                searchInTextPane(resPane, searchText);
+                searchInTextPane(resPane, resScrollPane, searchText);
             }
         });
 
@@ -187,12 +217,18 @@ public class MainWindow extends JFrame {
         setVisible(true);
     }
 
-    // Метод для поиска текста в JTextPane
-    private void searchInTextPane(JTextPane textPane, String searchText) {
+    // Метод для поиска текста в JTextPane с автоскроллом
+    private void searchInTextPane(JTextPane textPane, JScrollPane scrollPane, String searchText) {
         clearSearchHighlights(textPane);
+        searchPositions.clear();
+        currentSearchIndex = -1;
 
         String content = textPane.getText();
         if (content.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Текст ответа пуст",
+                    "Поиск",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
@@ -204,29 +240,64 @@ public class MainWindow extends JFrame {
         int foundCount = 0;
 
         try {
+            // Находим все вхождения и сохраняем позиции
             while ((index = contentLower.indexOf(searchTextLower, index)) >= 0) {
                 int endIndex = index + searchText.length();
                 highlighter.addHighlight(index, endIndex, searchHighlighter);
+                searchPositions.add(index);
                 foundCount++;
                 index = endIndex;
             }
 
-            // Прокручиваем к первому найденному элементу
+            // Автоскролл к первому найденному элементу
             if (foundCount > 0) {
-                textPane.setCaretPosition(0);
-                textPane.moveCaretPosition(0);
+                currentSearchIndex = 0;
+                scrollToPosition(textPane, scrollPane, searchPositions.get(0));
+                showSearchStatus();
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Текст не найден: " + searchText,
+                        "Поиск",
+                        JOptionPane.INFORMATION_MESSAGE);
             }
-
-            JOptionPane.showMessageDialog(this,
-                    "Найдено совпадений: " + foundCount,
-                    "Результаты поиска",
-                    JOptionPane.INFORMATION_MESSAGE);
 
         } catch (BadLocationException ex) {
             JOptionPane.showMessageDialog(this,
                     "Ошибка при поиске: " + ex.getMessage(),
                     "Ошибка",
                     JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Метод для прокрутки к указанной позиции
+    private void scrollToPosition(JTextPane textPane, JScrollPane scrollPane, int position) {
+        try {
+            // Устанавливаем курсор на найденную позицию
+            textPane.setCaretPosition(position);
+            textPane.moveCaretPosition(position + 1); // Выделяем первый символ
+
+            // Получаем прямоугольник позиции текста
+            Rectangle textRect = textPane.modelToView(position);
+            if (textRect != null) {
+                // Получаем видимую область скроллпанели
+                Rectangle viewRect = scrollPane.getViewport().getViewRect();
+
+                // Вычисляем новую позицию для прокрутки
+                int y = textRect.y - (viewRect.height / 3); // Прокручиваем так, чтобы текст был в верхней трети
+
+                // Устанавливаем новую позицию прокрутки
+                scrollPane.getViewport().setViewPosition(new Point(0, y));
+            }
+        } catch (BadLocationException ex) {
+            // Если не удалось получить прямоугольник, просто устанавливаем позицию курсора
+            textPane.setCaretPosition(position);
+        }
+    }
+
+    // Метод для отображения статуса поиска
+    private void showSearchStatus() {
+        if (!searchPositions.isEmpty()) {
+            this.searchResultLabel.setText((currentSearchIndex + 1) + "/" + searchPositions.size());
         }
     }
 
