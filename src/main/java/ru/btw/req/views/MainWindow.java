@@ -7,7 +7,12 @@ import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.*;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainWindow extends JFrame {
     private int inset = 100;
@@ -16,12 +21,26 @@ public class MainWindow extends JFrame {
     private int currentSearchIndex = -1;
     private JLabel searchResultLabel;
 
+    // Компоненты для хранения истории
+    private JTextField urlField;
+    private JTextPane rqPane;
+    private JTextPane cookiePane;
+    private JCheckBox postCheckBox;
+
+    // Файл конфигурации
+    private static final String CONFIG_FILE = "config.json";
+    private List<RequestConfig> requestHistory = new ArrayList<>();
+    private static final int MAX_HISTORY = 10;
+
     public MainWindow() {
         setTitle("req");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         // Инициализируем подсветку поиска
         searchHighlighter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
+
+        // Загружаем историю запросов
+        loadConfig();
 
         // Получаем размеры экрана
         Toolkit toolkit = Toolkit.getDefaultToolkit();
@@ -37,21 +56,29 @@ public class MainWindow extends JFrame {
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
 
-        // Панель для URL
+        // Панель для URL с историей
         JPanel urlPanel = new JPanel(new BorderLayout(5, 0));
         urlPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
         JLabel urlLabel = new JLabel("url запроса:");
-        JTextField urlField = new JTextField("http://127.0.0.1:3030/api-get");
+        urlField = new JTextField("http://127.0.0.1:3030/api-get");
+
+        // Кнопка выбора из истории
+        JButton historyButton = new JButton("История");
+        historyButton.setPreferredSize(new Dimension(80, 20));
+
+        JPanel urlFieldPanel = new JPanel(new BorderLayout());
+        urlFieldPanel.add(urlField, BorderLayout.CENTER);
+        urlFieldPanel.add(historyButton, BorderLayout.EAST);
 
         urlPanel.add(urlLabel, BorderLayout.WEST);
-        urlPanel.add(urlField, BorderLayout.CENTER);
+        urlPanel.add(urlFieldPanel, BorderLayout.CENTER);
 
         // Панель для метода запроса
         JPanel methodPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         methodPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
-        JCheckBox postCheckBox = new JCheckBox("POST");
+        postCheckBox = new JCheckBox("POST");
         JLabel rqLabel = new JLabel("тело запроса:");
 
         methodPanel.add(postCheckBox);
@@ -61,7 +88,7 @@ public class MainWindow extends JFrame {
         JPanel requestPanel = new JPanel(new BorderLayout());
         requestPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
 
-        JTextPane rqPane = new JTextPane();
+        rqPane = new JTextPane();
         JScrollPane rqScrollPane = new JScrollPane(rqPane);
         rqScrollPane.setPreferredSize(new Dimension(0, 150));
 
@@ -72,7 +99,7 @@ public class MainWindow extends JFrame {
         cookiePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
 
         JLabel cookieLabel = new JLabel("куки:");
-        JTextPane cookiePane = new JTextPane();
+        cookiePane = new JTextPane();
         JScrollPane cookieScrollPane = new JScrollPane(cookiePane);
         cookieScrollPane.setPreferredSize(new Dimension(0, 140));
 
@@ -135,6 +162,11 @@ public class MainWindow extends JFrame {
         sendButton.setPreferredSize(new Dimension(150, 30));
         buttonPanel.add(sendButton);
 
+        // Кнопка сохранения конфигурации
+        JButton saveConfigButton = new JButton("Сохранить");
+        saveConfigButton.setPreferredSize(new Dimension(100, 30));
+        buttonPanel.add(saveConfigButton);
+
         // Добавляем contentPanel и buttonPanel в mainPanel
         mainPanel.add(contentPanel, BorderLayout.CENTER);
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -169,6 +201,18 @@ public class MainWindow extends JFrame {
                 resPane.setText("Ошибка: " + ex.getMessage());
             }
         });
+
+        // Обработчик кнопки сохранения конфигурации
+        saveConfigButton.addActionListener(e -> {
+            saveCurrentConfig();
+            JOptionPane.showMessageDialog(this,
+                    "Конфигурация сохранена",
+                    "Сохранение",
+                    JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        // Обработчик кнопки истории
+        historyButton.addActionListener(e -> showHistoryDialog());
 
         // Обработчик кнопки поиска
         searchButton.addActionListener(e -> {
@@ -213,8 +257,176 @@ public class MainWindow extends JFrame {
             }
         });
 
+        // Обработчик закрытия окна - сохраняем конфигурацию
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                saveCurrentConfig();
+            }
+        });
+
         add(mainPanel);
         setVisible(true);
+    }
+
+    // Класс для хранения конфигурации запроса
+    private static class RequestConfig {
+        String url;
+        String requestBody;
+        String cookies;
+        boolean isPost;
+        String timestamp;
+
+        RequestConfig(String url, String requestBody, String cookies, boolean isPost) {
+            this.url = url;
+            this.requestBody = requestBody;
+            this.cookies = cookies;
+            this.isPost = isPost;
+            this.timestamp = java.time.LocalDateTime.now().toString();
+        }
+    }
+
+    // Загрузка конфигурации из файла
+    private void loadConfig() {
+        File configFile = new File(CONFIG_FILE);
+        if (configFile.exists()) {
+            try {
+                String content = new String(Files.readAllBytes(Paths.get(CONFIG_FILE)));
+                Gson gson = new Gson();
+                JsonArray jsonArray = JsonParser.parseString(content).getAsJsonArray();
+
+                for (JsonElement element : jsonArray) {
+                    JsonObject obj = element.getAsJsonObject();
+                    RequestConfig config = new RequestConfig(
+                            obj.get("url").getAsString(),
+                            obj.get("requestBody").getAsString(),
+                            obj.get("cookies").getAsString(),
+                            obj.get("isPost").getAsBoolean()
+                    );
+                    requestHistory.add(config);
+                }
+            } catch (Exception e) {
+                System.out.println("Ошибка загрузки конфигурации: " + e.getMessage());
+            }
+        }
+    }
+
+    // Сохранение конфигурации в файл
+    private void saveConfig() {
+        try {
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            JsonArray jsonArray = new JsonArray();
+
+            for (RequestConfig config : requestHistory) {
+                JsonObject obj = new JsonObject();
+                obj.addProperty("url", config.url);
+                obj.addProperty("requestBody", config.requestBody);
+                obj.addProperty("cookies", config.cookies);
+                obj.addProperty("isPost", config.isPost);
+                obj.addProperty("timestamp", config.timestamp);
+                jsonArray.add(obj);
+            }
+
+            Files.write(Paths.get(CONFIG_FILE), gson.toJson(jsonArray).getBytes());
+        } catch (Exception e) {
+            System.out.println("Ошибка сохранения конфигурации: " + e.getMessage());
+        }
+    }
+
+    // Сохранение текущей конфигурации
+    private void saveCurrentConfig() {
+        String url = urlField.getText().trim();
+        String requestBody = rqPane.getText().trim();
+        String cookies = cookiePane.getText().trim();
+        boolean isPost = postCheckBox.isSelected();
+
+        if (!url.isEmpty()) {
+            // Удаляем старые записи с таким же URL
+            requestHistory.removeIf(config -> config.url.equals(url));
+
+            // Добавляем новую запись в начало
+            requestHistory.add(0, new RequestConfig(url, requestBody, cookies, isPost));
+
+            // Ограничиваем размер истории
+            if (requestHistory.size() > MAX_HISTORY) {
+                requestHistory = requestHistory.subList(0, MAX_HISTORY);
+            }
+
+            saveConfig();
+        }
+    }
+
+    // Показ диалога выбора из истории
+    private void showHistoryDialog() {
+        if (requestHistory.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "История запросов пуста",
+                    "История",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // Создаем диалог с выбором
+        JDialog historyDialog = new JDialog(this, "Выберите запрос из истории", true);
+        historyDialog.setLayout(new BorderLayout());
+        historyDialog.setSize(600, 400);
+        historyDialog.setLocationRelativeTo(this);
+
+        // Модель списка с отображением URL и времени
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        for (RequestConfig config : requestHistory) {
+            String displayText = String.format("%s (%s)",
+                    config.url,
+                    config.timestamp.substring(0, 16).replace("T", " "));
+            listModel.addElement(displayText);
+        }
+
+        JList<String> historyList = new JList<>(listModel);
+        historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane listScrollPane = new JScrollPane(historyList);
+
+        // Кнопки
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton loadButton = new JButton("Загрузить");
+        JButton deleteButton = new JButton("Удалить");
+        JButton cancelButton = new JButton("Отмена");
+
+        buttonPanel.add(loadButton);
+        buttonPanel.add(deleteButton);
+        buttonPanel.add(cancelButton);
+
+        historyDialog.add(listScrollPane, BorderLayout.CENTER);
+        historyDialog.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Обработчики кнопок
+        loadButton.addActionListener(e -> {
+            int selectedIndex = historyList.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                RequestConfig config = requestHistory.get(selectedIndex);
+                urlField.setText(config.url);
+                rqPane.setText(config.requestBody);
+                cookiePane.setText(config.cookies);
+                postCheckBox.setSelected(config.isPost);
+                historyDialog.dispose();
+            }
+        });
+
+        deleteButton.addActionListener(e -> {
+            int selectedIndex = historyList.getSelectedIndex();
+            if (selectedIndex >= 0) {
+                requestHistory.remove(selectedIndex);
+                listModel.remove(selectedIndex);
+                saveConfig();
+
+                if (requestHistory.isEmpty()) {
+                    historyDialog.dispose();
+                }
+            }
+        });
+
+        cancelButton.addActionListener(e -> historyDialog.dispose());
+
+        historyDialog.setVisible(true);
     }
 
     // Метод для поиска текста в JTextPane с автоскроллом
