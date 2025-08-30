@@ -80,11 +80,11 @@ public class MainWindow extends JFrame {
 
         // Панель для ответа
         JPanel responsePanel = new JPanel(new BorderLayout());
-        responsePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 230));
+        responsePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 350));
 
         JTextPane resPane = new JTextPane();
         JScrollPane resScrollPane = new JScrollPane(resPane);
-        resScrollPane.setPreferredSize(new Dimension(0, 200));
+        resScrollPane.setPreferredSize(new Dimension(0, 320));
 
         responsePanel.add(new JLabel("Ответ:"), BorderLayout.NORTH);
         responsePanel.add(resScrollPane, BorderLayout.CENTER);
