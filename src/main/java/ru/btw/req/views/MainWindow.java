@@ -29,9 +29,27 @@ public class MainWindow extends JFrame {
     private JCheckBox postCheckBox;
 
     // Файл конфигурации
-    private static final String CONFIG_FILE = "config.json";
+    private static final String CONFIG_DIR =
+            System.getProperty("user.home") + File.separator + ".req-java";
+    private static final String CONFIG_FILE = CONFIG_DIR + File.separator + "config.json";
     private List<RequestConfig> requestHistory = new ArrayList<>();
     private static final int MAX_HISTORY = 10;
+
+    private void initializeConfigPaths() {
+        // Создаем директорию немедленно
+        File dir = new File(CONFIG_DIR);
+        if (!dir.exists()) {
+            try {
+                dir.mkdirs();
+                // Устанавливаем права
+                dir.setReadable(true, false);
+                dir.setWritable(true, false);
+                dir.setExecutable(true, false);
+            } catch (SecurityException e) {
+                System.out.println("Ошибка создании папки " + CONFIG_DIR + " " + e.getMessage());
+            }
+        }
+    }
 
     public MainWindow() {
         setTitle("req");
@@ -41,6 +59,7 @@ public class MainWindow extends JFrame {
         searchHighlighter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
 
         // Загружаем историю запросов
+        initializeConfigPaths();
         loadConfig();
 
         // Получаем размеры экрана
@@ -289,6 +308,7 @@ public class MainWindow extends JFrame {
 
     // Загрузка конфигурации из файла
     private void loadConfig() {
+        System.out.println(CONFIG_FILE);
         File configFile = new File(CONFIG_FILE);
         if (configFile.exists()) {
             try {
