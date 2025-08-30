@@ -15,7 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainWindow extends JFrame {
-    private int inset = 100;
+    private static final int INSET = 100;
+
     private Highlighter.HighlightPainter searchHighlighter;
     private java.util.List<Integer> searchPositions = new java.util.ArrayList<>();
     private int currentSearchIndex = -1;
@@ -45,7 +46,7 @@ public class MainWindow extends JFrame {
         // Получаем размеры экрана
         Toolkit toolkit = Toolkit.getDefaultToolkit();
         Dimension dimension = toolkit.getScreenSize();
-        setBounds(inset, inset, dimension.width - inset * 2, dimension.height - inset * 2);
+        setBounds(INSET, INSET, dimension.width - INSET * 2, dimension.height - INSET * 2);
         setResizable(true);
 
         // Основная панель с BorderLayout - кнопка будет внизу
@@ -61,7 +62,7 @@ public class MainWindow extends JFrame {
         urlPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
         JLabel urlLabel = new JLabel("url запроса:");
-        urlField = new JTextField("http://127.0.0.1:3030/api-get");
+        urlField = new JTextField();
 
         // Кнопка выбора из истории
         JButton historyButton = new JButton("История");
