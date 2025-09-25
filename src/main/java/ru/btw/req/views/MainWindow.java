@@ -28,12 +28,16 @@ public class MainWindow extends JFrame {
     private JTextPane cookiePane;
     private JCheckBox postCheckBox;
 
-    // Файл конфигурации
+    // Файлы конфигурации
     private static final String CONFIG_DIR =
             System.getProperty("user.home") + File.separator + ".req-java";
     private static final String CONFIG_FILE = CONFIG_DIR + File.separator + "config.json";
+    private static final String HEADERS_FILE = CONFIG_DIR + File.separator + "headers.json";
     private List<RequestConfig> requestHistory = new ArrayList<>();
     private static final int MAX_HISTORY = 10;
+
+    // Дефолтные хедеры
+    private DefaultHeaders defaultHeaders = new DefaultHeaders();
 
     private void initializeConfigPaths() {
         // Создаем директорию немедленно
@@ -58,9 +62,10 @@ public class MainWindow extends JFrame {
         // Инициализируем подсветку поиска
         searchHighlighter = new DefaultHighlighter.DefaultHighlightPainter(Color.YELLOW);
 
-        // Загружаем историю запросов
+        // Загружаем историю запросов и дефолтные хедеры
         initializeConfigPaths();
         loadConfig();
+        loadDefaultHeaders();
 
         // Получаем размеры экрана
         Toolkit toolkit = Toolkit.getDefaultToolkit();
@@ -114,16 +119,28 @@ public class MainWindow extends JFrame {
 
         requestPanel.add(rqScrollPane, BorderLayout.CENTER);
 
-        // Панель для куков
+        // Панель для куков с кнопкой управления хедерами
         JPanel cookiePanel = new JPanel(new BorderLayout());
         cookiePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
 
+        JPanel cookieHeaderPanel = new JPanel(new BorderLayout());
         JLabel cookieLabel = new JLabel("куки:");
+        JButton manageHeadersButton = new JButton("Управление хедерами");
+        manageHeadersButton.setPreferredSize(new Dimension(160, 20));
+
+        cookieHeaderPanel.add(cookieLabel, BorderLayout.WEST);
+        cookieHeaderPanel.add(manageHeadersButton, BorderLayout.EAST);
+
         cookiePane = new JTextPane();
+        // Устанавливаем дефолтные куки при загрузке
+        if (defaultHeaders != null && !defaultHeaders.cookies.isEmpty()) {
+            cookiePane.setText(defaultHeaders.cookies);
+        }
+
         JScrollPane cookieScrollPane = new JScrollPane(cookiePane);
         cookieScrollPane.setPreferredSize(new Dimension(0, 140));
 
-        cookiePanel.add(cookieLabel, BorderLayout.NORTH);
+        cookiePanel.add(cookieHeaderPanel, BorderLayout.NORTH);
         cookiePanel.add(cookieScrollPane, BorderLayout.CENTER);
 
         // Панель статуса
@@ -194,7 +211,12 @@ public class MainWindow extends JFrame {
         // Обработчик кнопки отправки
         sendButton.addActionListener((ActionEvent e) -> {
             String url = urlField.getText().trim();
+            // Используем куки из поля, если они не пустые, иначе дефолтные
             String cookie = cookiePane.getText().trim();
+            if (cookie.isEmpty() && defaultHeaders != null && !defaultHeaders.cookies.isEmpty()) {
+                cookie = defaultHeaders.cookies;
+            }
+
             HttpResponse<String> res;
 
             try {
@@ -233,6 +255,9 @@ public class MainWindow extends JFrame {
 
         // Обработчик кнопки истории
         historyButton.addActionListener(e -> showHistoryDialog());
+
+        // Обработчик кнопки управления хедерами
+        manageHeadersButton.addActionListener(e -> showHeadersDialog());
 
         // Обработчик кнопки поиска
         searchButton.addActionListener(e -> {
@@ -289,20 +314,70 @@ public class MainWindow extends JFrame {
         setVisible(true);
     }
 
-    // Класс для хранения конфигурации запроса
+    // Класс для хранения дефолтных хедеров
+    private static class DefaultHeaders {
+        String cookies = "";
+        String headers = "";
+
+        DefaultHeaders() {}
+
+        DefaultHeaders(String cookies, String headers) {
+            this.cookies = cookies != null ? cookies : "";
+            this.headers = headers != null ? headers : "";
+        }
+    }
+
+    // Класс для хранения конфигурации запроса (без куков в истории)
     private static class RequestConfig {
         String url;
         String requestBody;
-        String cookies;
         boolean isPost;
         String timestamp;
 
-        RequestConfig(String url, String requestBody, String cookies, boolean isPost) {
+        RequestConfig(String url, String requestBody, boolean isPost) {
             this.url = url;
             this.requestBody = requestBody;
-            this.cookies = cookies;
             this.isPost = isPost;
             this.timestamp = java.time.LocalDateTime.now().toString();
+        }
+    }
+
+    // Загрузка дефолтных хедеров из файла
+    private void loadDefaultHeaders() {
+        File headersFile = new File(HEADERS_FILE);
+        if (headersFile.exists()) {
+            try {
+                String content = new String(Files.readAllBytes(Paths.get(HEADERS_FILE)));
+                Gson gson = new Gson();
+                JsonObject jsonObject = JsonParser.parseString(content).getAsJsonObject();
+
+                defaultHeaders = new DefaultHeaders(
+                        jsonObject.has("cookies") ? jsonObject.get("cookies").getAsString() : "",
+                        jsonObject.has("headers") ? jsonObject.get("headers").getAsString() : ""
+                );
+
+                System.out.println("Загружены дефолтные хедеры");
+            } catch (Exception e) {
+                System.out.println("Ошибка загрузки хедеров: " + e.getMessage());
+                defaultHeaders = new DefaultHeaders();
+            }
+        } else {
+            defaultHeaders = new DefaultHeaders();
+        }
+    }
+
+    // Сохранение дефолтных хедеров в файл
+    private void saveDefaultHeaders() {
+        try {
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.addProperty("cookies", defaultHeaders.cookies);
+            jsonObject.addProperty("headers", defaultHeaders.headers);
+
+            Files.write(Paths.get(HEADERS_FILE), gson.toJson(jsonObject).getBytes());
+            System.out.println("Дефолтные хедеры сохранены");
+        } catch (Exception e) {
+            System.out.println("Ошибка сохранения хедеров: " + e.getMessage());
         }
     }
 
@@ -321,7 +396,6 @@ public class MainWindow extends JFrame {
                     RequestConfig config = new RequestConfig(
                             obj.get("url").getAsString(),
                             obj.get("requestBody").getAsString(),
-                            obj.get("cookies").getAsString(),
                             obj.get("isPost").getAsBoolean()
                     );
                     requestHistory.add(config);
@@ -342,7 +416,6 @@ public class MainWindow extends JFrame {
                 JsonObject obj = new JsonObject();
                 obj.addProperty("url", config.url);
                 obj.addProperty("requestBody", config.requestBody);
-                obj.addProperty("cookies", config.cookies);
                 obj.addProperty("isPost", config.isPost);
                 obj.addProperty("timestamp", config.timestamp);
                 jsonArray.add(obj);
@@ -354,11 +427,10 @@ public class MainWindow extends JFrame {
         }
     }
 
-    // Сохранение текущей конфигурации
+    // Сохранение текущей конфигурации (без куков)
     private void saveCurrentConfig() {
         String url = urlField.getText().trim();
         String requestBody = rqPane.getText().trim();
-        String cookies = cookiePane.getText().trim();
         boolean isPost = postCheckBox.isSelected();
 
         if (!url.isEmpty()) {
@@ -366,7 +438,7 @@ public class MainWindow extends JFrame {
             requestHistory.removeIf(config -> config.url.equals(url));
 
             // Добавляем новую запись в начало
-            requestHistory.add(0, new RequestConfig(url, requestBody, cookies, isPost));
+            requestHistory.add(0, new RequestConfig(url, requestBody, isPost));
 
             // Ограничиваем размер истории
             if (requestHistory.size() > MAX_HISTORY) {
@@ -375,6 +447,79 @@ public class MainWindow extends JFrame {
 
             saveConfig();
         }
+    }
+
+    // Диалог управления хедерами
+    private void showHeadersDialog() {
+        JDialog headersDialog = new JDialog(this, "Управление хедерами по умолчанию", true);
+        headersDialog.setLayout(new BorderLayout());
+        headersDialog.setSize(500, 400);
+        headersDialog.setLocationRelativeTo(this);
+
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        // Поле для куков
+        JPanel cookiesPanel = new JPanel(new BorderLayout());
+        cookiesPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+        JLabel cookiesLabel = new JLabel("Куки по умолчанию:");
+        JTextArea cookiesArea = new JTextArea(3, 40);
+        cookiesArea.setLineWrap(true);
+        cookiesArea.setWrapStyleWord(true);
+        cookiesArea.setText(defaultHeaders.cookies);
+        JScrollPane cookiesScroll = new JScrollPane(cookiesArea);
+
+        cookiesPanel.add(cookiesLabel, BorderLayout.NORTH);
+        cookiesPanel.add(cookiesScroll, BorderLayout.CENTER);
+
+        // Поле для других хедеров
+        JPanel headersPanel = new JPanel(new BorderLayout());
+        headersPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+        JLabel headersLabel = new JLabel("Другие заголовки (каждый с новой строки):");
+        JTextArea headersArea = new JTextArea(3, 40);
+        headersArea.setLineWrap(true);
+        headersArea.setWrapStyleWord(true);
+        headersArea.setText(defaultHeaders.headers);
+        JScrollPane headersScroll = new JScrollPane(headersArea);
+
+        headersPanel.add(headersLabel, BorderLayout.NORTH);
+        headersPanel.add(headersScroll, BorderLayout.CENTER);
+
+        // Кнопки
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton saveButton = new JButton("Сохранить");
+        JButton cancelButton = new JButton("Отмена");
+
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+
+        mainPanel.add(cookiesPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(headersPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(buttonPanel);
+
+        headersDialog.add(mainPanel, BorderLayout.CENTER);
+
+        // Обработчики кнопок
+        saveButton.addActionListener(e -> {
+            defaultHeaders.cookies = cookiesArea.getText().trim();
+            defaultHeaders.headers = headersArea.getText().trim();
+            saveDefaultHeaders();
+
+            // Обновляем поле куков, если оно пустое
+            if (cookiePane.getText().trim().isEmpty()) {
+                cookiePane.setText(defaultHeaders.cookies);
+            }
+
+            headersDialog.dispose();
+            JOptionPane.showMessageDialog(this, "Хедеры сохранены");
+        });
+
+        cancelButton.addActionListener(e -> headersDialog.dispose());
+
+        headersDialog.setVisible(true);
     }
 
     // Показ диалога выбора из истории
@@ -426,7 +571,7 @@ public class MainWindow extends JFrame {
                 RequestConfig config = requestHistory.get(selectedIndex);
                 urlField.setText(config.url);
                 rqPane.setText(config.requestBody);
-                cookiePane.setText(config.cookies);
+                // Не загружаем куки из истории - используем дефолтные или текущие
                 postCheckBox.setSelected(config.isPost);
                 historyDialog.dispose();
             }
@@ -450,6 +595,7 @@ public class MainWindow extends JFrame {
         historyDialog.setVisible(true);
     }
 
+    // ... остальные методы (searchInTextPane, scrollToPosition, showSearchStatus, clearSearchHighlights) без изменений
     // Метод для поиска текста в JTextPane с автоскроллом
     private void searchInTextPane(JTextPane textPane, JScrollPane scrollPane, String searchText) {
         clearSearchHighlights(textPane);
